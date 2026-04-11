@@ -1,0 +1,13 @@
+{
+  "name": "golf-gambling-trends",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Golf Gambling Trends, Matchups and Predictions — GHIN-powered dashboard",
+  "scripts": {
+    "dev": "live-server --port=3000 --no-browser --ignore=node_modules",
+    "start": "live-server --port=3000 --ignore=node_modules"
+  },
+  "devDependencies": {
+    "live-server": "^1.2.2"
+  }
+}

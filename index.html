@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Golf Gambling Trends, Matchups and Predictions</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/styles.css"/>
+</head>
+<body>
+
+<!-- ══ LOGIN ══ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">⛳ Golf Gambling<span> Trends</span></div>
+    <div class="login-tagline">Trends, Matchups &amp; Predictions</div>
+    <div id="login-error" class="error-msg" style="display:none"></div>
+    <label for="username">GHIN Username</label>
+    <input type="text" id="username" placeholder="Your GHIN username" autocomplete="username"/>
+    <label for="password">Password</label>
+    <input type="password" id="password" placeholder="Your GHIN password" autocomplete="current-password"/>
+    <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:1.25rem">
+      <input type="checkbox" id="remember-me" style="width:15px;height:15px;accent-color:var(--green-mid);cursor:pointer"/>
+      <label for="remember-me" style="font-size:0.7rem;letter-spacing:0.08em;color:var(--muted);cursor:pointer;text-transform:none">Remember me</label>
+    </div>
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Sign In</button>
+    <p class="login-note">
+      Credentials are sent only to GHIN's API.<br>
+      If "Remember me" is checked, your username is saved in your browser's local storage. Your password is never stored.
+    </p>
+  </div>
+</div>
+
+<!-- ══ APP ══ -->
+<div id="app">
+  <header>
+    <div class="header-logo">⛳ Golf Gambling<span> Trends</span></div>
+    <div class="header-right">
+      <span class="user-badge" id="user-badge"></span>
+      <button class="logout-btn" onclick="doLogout()">Sign Out</button>
+    </div>
+  </header>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('my-scores', this)">My Scores</button>
+    <button class="tab-btn" onclick="showTab('my-trend', this)">Handicap Trend</button>
+    <button class="tab-btn" onclick="showTab('members', this)">Following &amp; Club</button>
+    <button class="tab-btn" onclick="showTab('compare', this)">Compare</button>
+    <button class="tab-btn" onclick="showTab('form', this)">Form</button>
+    <button class="tab-btn" onclick="showTab('matchup', this)">Matchup</button>
+  </div>
+
+  <main>
+    <!-- ── MY SCORES ── -->
+    <div id="tab-my-scores" class="tab-panel active">
+      <div class="stat-grid" id="my-stats"></div>
+      <div class="section-header">
+        <span class="section-title">Score History</span>
+        <span class="section-meta" id="score-count"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Course</th>
+              <th>Tees</th>
+              <th>Rating / Slope</th>
+              <th>Score</th>
+              <th>Differential</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody id="scores-tbody">
+            <tr><td colspan="7" class="loading"><span class="spinner"></span>Loading scores…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── TREND ── -->
+    <div id="tab-my-trend" class="tab-panel">
+      <div class="stat-grid" id="trend-stats"></div>
+      <div class="section-header">
+        <span class="section-title">Score Differential Trend</span>
+        <span class="section-meta">Last 20 rounds · lower is better</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="trend-chart" height="280"></canvas>
+      </div>
+      <div class="section-header" style="margin-top:2rem">
+        <span class="section-title">Score Differentials</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="diff-chart" height="220"></canvas>
+      </div>
+    </div>
+
+    <!-- ── MEMBERS ── -->
+    <div id="tab-members" class="tab-panel">
+      <div class="filter-row">
+        <button class="subtab-btn active" id="subtab-following" onclick="switchSubtab('following', this)">Following</button>
+        <button class="subtab-btn" id="subtab-club" onclick="switchSubtab('club', this)">Geneva Golf Club</button>
+        <input type="text" id="member-search" placeholder="Last name or GHIN #…" onkeydown="if(event.key==='Enter')doMemberSearch()"/>
+        <button class="refresh-btn" onclick="doMemberSearch()">Search</button>
+        <button class="refresh-btn" id="refresh-members-btn" onclick="loadMembers()" style="background:var(--muted)">↻ Reset</button>
+      </div>
+      <div class="section-header">
+        <span class="section-title">Club Members</span>
+        <span class="section-meta" id="member-count"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>GHIN #</th>
+              <th>Handicap Index</th>
+              <th>Low HI</th>
+              <th>Last Diff</th>
+              <th>Recent (last 5)</th>
+            </tr>
+          </thead>
+          <tbody id="members-tbody">
+            <tr><td colspan="6" class="loading"><span class="spinner"></span>Loading members…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <!-- ── COMPARE ── -->
+    <div id="tab-compare" class="tab-panel">
+      <div class="section-header">
+        <span class="section-title">Compare Golfers</span>
+        <span class="section-meta">Click golfers below to add (max 4)</span>
+      </div>
+      <div style="margin-bottom:1.5rem">
+        <div id="compare-roster" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem">
+          <span style="font-size:0.7rem;color:var(--muted);letter-spacing:0.08em">Loading your following list…</span>
+        </div>
+        <button class="refresh-btn" onclick="clearCompare()" style="background:var(--muted)">✕ Clear All</button>
+      </div>
+      <div id="compare-chips" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1.5rem"></div>
+      <div id="compare-stats-grid" class="stat-grid"></div>
+      <div id="compare-chart-wrap" class="chart-wrap" style="display:none;margin-top:1.5rem">
+        <div class="section-header" style="margin-bottom:1rem">
+          <span class="section-title">Score Differential Trend</span>
+          <span class="section-meta">Last 10 rounds · lower is better</span>
+        </div>
+        <canvas id="compare-chart" height="280"></canvas>
+      </div>
+      <div id="compare-table-wrap" style="display:none;margin-top:1.5rem">
+        <div class="section-header" style="margin-bottom:1rem">
+          <span class="section-title">Recent Scores</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr id="compare-thead"></tr></thead>
+            <tbody id="compare-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── FORM ── -->
+    <div id="tab-form" class="tab-panel">
+      <div class="section-header">
+        <span class="section-title">Form Analysis</span>
+        <span class="section-meta" id="form-meta">Analyzing golfers you follow…</span>
+      </div>
+      <div id="form-loading" class="loading" style="display:none"><span class="spinner"></span>Loading scores…</div>
+      <div class="table-wrap" style="margin-top:0.5rem">
+        <table>
+          <thead>
+            <tr>
+              <th>Golfer</th>
+              <th>Baseline Diff</th>
+              <th>Recent Wtd Diff</th>
+              <th>Form Score</th>
+              <th>Trend</th>
+              <th>Volatility</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="form-tbody">
+            <tr><td colspan="7" class="loading"><span class="spinner"></span>Visit this tab after logging in…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:1.5rem;background:var(--white);border:1px solid var(--cream-dark);padding:1.5rem;font-size:0.75rem;line-height:1.8;color:var(--ink)">
+        <div style="font-family:'DM Serif Display',serif;font-size:1.1rem;color:var(--green-deep);margin-bottom:1rem">How Form Analysis Works</div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem">
+
+          <div>
+            <div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem">Calculations</div>
+            <p style="margin-bottom:0.5rem"><strong>Baseline Differential</strong> — The median of your last 20 round differentials. This represents your "true" level of play, resistant to outliers in either direction.</p>
+            <p style="margin-bottom:0.5rem"><strong>Recent Weighted Differential</strong> — A weighted average of your last 5 rounds, emphasizing the most recent: 35% · 25% · 20% · 12.5% · 7.5%. Captures current form more sensitively than a simple average.</p>
+            <p><strong>Form Score</strong> — Baseline minus Recent Weighted. A positive score means you're playing <em>better</em> than your baseline (lower differentials are better in golf). A negative score means you're trending worse.</p>
+          </div>
+
+          <div>
+            <div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem">Status & Color Coding</div>
+            <p style="margin-bottom:0.4rem"><span style="color:#c0392b;font-weight:600">🔥 Hot</span> — Form Score ≥ 1.5. Playing noticeably better than baseline over recent rounds.</p>
+            <p style="margin-bottom:0.4rem"><span style="color:var(--muted);font-weight:600">😐 Neutral</span> — Form Score between −1.5 and 1.5. Playing in line with their typical level.</p>
+            <p style="margin-bottom:0.75rem"><span style="color:#2980b9;font-weight:600">🥶 Cold</span> — Form Score ≤ −1.5. Recent rounds are meaningfully worse than baseline.</p>
+
+            <div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem">Trend</div>
+            <p style="margin-bottom:0.4rem"><span style="color:#2d6a4f;font-weight:600">↑ Improving</span> — Avg of last 3 rounds is at least 1.0 better than the prior 3.</p>
+            <p style="margin-bottom:0.4rem"><span style="color:var(--muted);font-weight:600">→ Flat</span> — Avg of last 3 rounds is within ±1.0 of the prior 3.</p>
+            <p><span style="color:#c0392b;font-weight:600">↓ Declining</span> — Avg of last 3 rounds is at least 1.0 worse than the prior 3.</p>
+          </div>
+
+          <div>
+            <div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem">Volatility</div>
+            <p style="margin-bottom:0.4rem">Standard deviation of the last 10 round differentials. Measures how consistent a golfer's scoring is round-to-round.</p>
+            <p style="margin-bottom:0.4rem"><span style="color:#2d6a4f;font-weight:600">Low (&lt;2.0)</span> — Very consistent. Scores cluster tightly around their average.</p>
+            <p style="margin-bottom:0.4rem"><span style="color:#c9a84c;font-weight:600">Medium (2.0–4.0)</span> — Normal variability for most amateur golfers.</p>
+            <p style="margin-bottom:0.75rem"><span style="color:#c0392b;font-weight:600">High (&gt;4.0)</span> — Unpredictable. Big swings between good and bad rounds.</p>
+
+            <div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem">Note</div>
+            <p>All differentials use GHIN's pre-calculated <em>adjusted scaled-up differential</em>, which correctly handles partial rounds (fewer than 18 holes played) per World Handicap System rules.</p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MATCHUP ── -->
+    <div id="tab-matchup" class="tab-panel">
+      <div class="section-header">
+        <span class="section-title">Matchup Simulator</span>
+        <span class="section-meta">Calculate strokes &amp; formats</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem" id="matchup-pickers">
+        <div>
+          <div class="stat-label" style="margin-bottom:0.5rem">Golfer 1</div>
+          <select id="matchup-g1" onchange="updateLiveMatchup()"
+            style="width:100%;padding:0.6rem 0.9rem;border:1px solid var(--cream-dark);background:var(--white);font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--ink);outline:none">
+            <option value="">— Select golfer —</option>
+          </select>
+        </div>
+        <div>
+          <div class="stat-label" style="margin-bottom:0.5rem">Golfer 2</div>
+          <select id="matchup-g2" onchange="updateLiveMatchup()"
+            style="width:100%;padding:0.6rem 0.9rem;border:1px solid var(--cream-dark);background:var(--white);font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--ink);outline:none">
+            <option value="">— Select golfer —</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1.5rem">
+        <div>
+          <div class="stat-label" style="margin-bottom:0.5rem">Course Rating</div>
+          <input type="number" id="matchup-rating" placeholder="e.g. 72.4" step="0.1" oninput="updateLiveMatchup()"
+            style="width:100%;padding:0.6rem 0.9rem;border:1px solid var(--cream-dark);background:var(--white);font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--ink);outline:none"/>
+        </div>
+        <div>
+          <div class="stat-label" style="margin-bottom:0.5rem">Slope Rating</div>
+          <input type="number" id="matchup-slope" placeholder="e.g. 131" step="1" oninput="updateLiveMatchup()"
+            style="width:100%;padding:0.6rem 0.9rem;border:1px solid var(--cream-dark);background:var(--white);font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--ink);outline:none"/>
+        </div>
+        <div>
+          <div class="stat-label" style="margin-bottom:0.5rem">Par</div>
+          <input type="number" id="matchup-par" placeholder="72" value="72" step="1" oninput="updateLiveMatchup()"
+            style="width:100%;padding:0.6rem 0.9rem;border:1px solid var(--cream-dark);background:var(--white);font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--ink);outline:none"/>
+        </div>
+      </div>
+
+      <!-- Live probability preview -->
+      <div id="matchup-live-preview" style="display:none;background:var(--white);border:1px solid var(--cream-dark);padding:1.25rem;margin-bottom:1.5rem">
+        <div style="font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.75rem">Win Probability Preview</div>
+        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem">
+          <span id="live-name1" style="font-size:0.72rem;font-weight:600;min-width:100px;color:${COMPARE_COLORS[0]}"></span>
+          <div style="flex:1;height:28px;background:var(--cream-dark);overflow:hidden;display:flex;border-radius:2px">
+            <div id="live-bar1" style="background:#2d6a4f;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;font-weight:700;transition:width 0.3s"></div>
+            <div id="live-bar2" style="background:#c9a84c;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.75rem;font-weight:700;transition:width 0.3s"></div>
+          </div>
+          <span id="live-name2" style="font-size:0.72rem;font-weight:600;min-width:100px;text-align:right;color:#c9a84c"></span>
+        </div>
+        <div id="live-detail" style="font-size:0.68rem;color:var(--muted);line-height:1.6"></div>
+      </div>
+
+      <button class="login-btn" style="width:auto;padding:0.75rem 2rem;margin-bottom:2rem" onclick="runMatchup()">Full Matchup Analysis</button>
+      <div id="matchup-result"></div>
+
+      <div style="margin-top:2rem;background:var(--white);border:1px solid var(--cream-dark);padding:1.5rem;font-size:0.75rem;line-height:1.8;color:var(--ink)">
+        <div style="font-family:'DM Serif Display',serif;font-size:1.1rem;color:var(--green-deep);margin-bottom:1rem">How the Matchup Calculator Works</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.5rem">
+
+          <div>
+            <div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem">Course Handicap</div>
+            <p style="margin-bottom:0.5rem">Calculated using the official World Handicap System formula:</p>
+            <p style="background:var(--cream);padding:0.5rem 0.75rem;font-family:'DM Mono',monospace;font-size:0.72rem;margin-bottom:0.5rem">Course HCP = HI × (Slope ÷ 113) + (CR − Par)</p>
+            <p>Where HI = Handicap Index, Slope = course slope rating, CR = course rating, and Par = course par. This gives each golfer's playing handicap for the specific tees being played.</p>
+          </div>
+
+          <div>
+            <div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem">Stroke Allocations</div>
+            <p style="margin-bottom:0.4rem"><strong>Stroke Play</strong> — Full difference in course handicaps. Lower HCP gives strokes to higher HCP.</p>
+            <p style="margin-bottom:0.4rem"><strong>Match Play</strong> — ¾ of the full stroke difference per USGA guidelines, spread across the hardest holes on the scorecard.</p>
+            <p style="margin-bottom:0.4rem"><strong>Skins</strong> — Full stroke difference, allocated on the hardest holes (by stroke index).</p>
+            <p><strong>Stableford</strong> — Each golfer plays off their full course handicap, earning points per hole relative to par.</p>
+          </div>
+
+          <div>
+            <div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem">Win Probability</div>
+            <p style="margin-bottom:0.5rem">Starts at 50/50 and adjusts based on four factors:</p>
+            <p style="margin-bottom:0.3rem">📐 <strong>Handicap strokes</strong> — ~3.5% edge per stroke received. A golfer getting 4 strokes starts with a ~14% base advantage.</p>
+            <p style="margin-bottom:0.3rem">🔥 <strong>Form Score</strong> — ~4% per point. A Hot golfer (score ≥1.5) can swing the probability by 6% or more.</p>
+            <p style="margin-bottom:0.3rem">📈 <strong>Trend</strong> — Improving = +3%, Declining = −3%. Captures momentum going into the round.</p>
+            <p style="margin-bottom:0.5rem">📊 <strong>Volatility</strong> — Low volatility = +2% (consistency is an edge), High volatility = −2% (unpredictable scoring).</p>
+            <p style="color:var(--muted);font-size:0.7rem">Probability is capped at 5–95% — even a big mismatch leaves room for an upset. For entertainment purposes only.</p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </main>
+  <footer>Golf Gambling Trends, Matchups &amp; Predictions &nbsp;·&nbsp; Data provided by USGA GHIN &nbsp;·&nbsp; Not affiliated with USGA</footer>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
