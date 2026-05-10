@@ -1298,36 +1298,126 @@ async function loadFormAnalysis() {
     `Analysis complete · ${allGolfers.length} golfers · using adjusted differentials`;
 }
 
-function renderFormTable(golfers) {
-  const tbody = document.getElementById('form-tbody');
-  const rows = golfers.map(g => {
-    const name   = g.isMe
+let formSortField = null;
+let formSortDir = 'asc';
+let lastFormGolfers = [];
+
+const TREND_ORDER = { '↑ Improving': 2, '→ Flat': 1, '↓ Declining': 0 };
+const STATUS_ORDER = { '🔥 Hot': 2, '😐 Neutral': 1, '🥶 Cold': 0 };
+
+function buildFormRows(golfers) {
+  return golfers.map(g => {
+    const displayName = g.isMe
       ? `<strong>${g.first_name}</strong> <span style="font-size:0.6rem;color:var(--gold)">YOU</span>`
       : `<strong>${g.first_name} ${g.last_name||''}</strong>`;
+    const sortName = `${g.first_name||''} ${g.last_name||''}`.trim().toLowerCase();
     const scores = formDataCache[g.id];
     if (!scores) {
-      return `<tr><td>${name}</td><td colspan="6" class="loading" style="font-size:0.7rem"><span class="spinner"></span>Loading…</td></tr>`;
+      return { state: 'loading', displayName, sortName };
     }
     if (!scores.length) {
-      return `<tr><td>${name}</td><td colspan="6" style="font-size:0.7rem;color:var(--muted)">No scores available</td></tr>`;
+      return { state: 'empty', displayName, sortName, message: 'No scores available' };
     }
     const f = analyzeForm(scores);
     if (!f) {
-      return `<tr><td>${name}</td><td colspan="6" style="font-size:0.7rem;color:var(--muted)">Insufficient data (${scores.length} rounds)</td></tr>`;
+      return { state: 'empty', displayName, sortName, message: `Insufficient data (${scores.length} rounds)` };
     }
+    // Numeric volatility extracted from the formatted string (e.g. "Low (1.5)")
+    const volMatch = f.volatility && f.volatility.match(/[\d.]+/);
+    const volNum = volMatch ? parseFloat(volMatch[0]) : null;
+    return {
+      state: 'ready',
+      displayName, sortName, f,
+      sortKeys: {
+        name: sortName,
+        baseline: f.baseline,
+        recentWeighted: f.recentWeighted,
+        formScore: f.formScore,
+        trend: TREND_ORDER[f.trend] ?? -1,
+        volatility: volNum,
+        status: STATUS_ORDER[f.status] ?? -1,
+      }
+    };
+  });
+}
+
+function sortFormRows(rows) {
+  if (!formSortField) return rows;
+  const dir = formSortDir === 'asc' ? 1 : -1;
+  const isString = formSortField === 'name';
+  // Rows without sort data (loading/empty) sink to the bottom regardless of direction.
+  return rows.slice().sort((a, b) => {
+    const aReady = a.state === 'ready', bReady = b.state === 'ready';
+    if (!aReady && !bReady) return 0;
+    if (!aReady) return 1;
+    if (!bReady) return -1;
+    const av = a.sortKeys[formSortField];
+    const bv = b.sortKeys[formSortField];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (isString) return av.localeCompare(bv) * dir;
+    return (av - bv) * dir;
+  });
+}
+
+function renderFormTable(golfers) {
+  lastFormGolfers = golfers;
+  const tbody = document.getElementById('form-tbody');
+  const rows = sortFormRows(buildFormRows(golfers));
+  const html = rows.map(r => {
+    if (r.state === 'loading') {
+      return `<tr><td>${r.displayName}</td><td colspan="6" class="loading" style="font-size:0.7rem"><span class="spinner"></span>Loading…</td></tr>`;
+    }
+    if (r.state === 'empty') {
+      return `<tr><td>${r.displayName}</td><td colspan="6" style="font-size:0.7rem;color:var(--muted)">${r.message}</td></tr>`;
+    }
+    const f = r.f;
     const fmt = n => n != null ? n.toFixed(2) : '—';
     const fsColor = f.formScore > 1.5 ? '#c0392b' : f.formScore < -1.5 ? '#2980b9' : 'var(--ink)';
     return `<tr>
-      <td>${name}<br><span style="font-size:0.62rem;color:var(--muted)">${f.count} rounds</span></td>
+      <td>${r.displayName}<br><span style="font-size:0.62rem;color:var(--muted)">${f.count} rounds</span></td>
       <td style="font-size:0.82rem">${fmt(f.baseline)}</td>
       <td style="font-size:0.82rem">${fmt(f.recentWeighted)}</td>
-      <td style="font-size:0.82rem;font-weight:600;color:${fsColor}">${f.formScore > 0 ? '' : ''}${fmt(f.formScore)}</td>
+      <td style="font-size:0.82rem;font-weight:600;color:${fsColor}">${fmt(f.formScore)}</td>
       <td style="font-size:0.78rem;color:${f.trendColor}">${f.trend}</td>
       <td style="font-size:0.78rem;color:${f.volColor}">${f.volatility}</td>
       <td style="font-weight:600;color:${f.statusColor}">${f.status}</td>
     </tr>`;
   }).join('');
-  tbody.innerHTML = rows;
+  tbody.innerHTML = html;
+  updateFormSortIndicators();
+}
+
+function updateFormSortIndicators() {
+  document.querySelectorAll('#form-table th.sortable').forEach(th => {
+    const key = th.getAttribute('data-sort');
+    th.classList.remove('sort-asc', 'sort-desc');
+    const ind = th.querySelector('.sort-indicator');
+    if (key === formSortField) {
+      th.classList.add(formSortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+      if (ind) ind.textContent = formSortDir === 'asc' ? '↑' : '↓';
+    } else if (ind) {
+      ind.textContent = '↕';
+    }
+  });
+}
+
+function initFormSorting() {
+  document.querySelectorAll('#form-table th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.getAttribute('data-sort');
+      if (formSortField === key) {
+        formSortDir = formSortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        formSortField = key;
+        // Numeric columns where lower is "better" default to ascending; others default to descending.
+        formSortDir = (key === 'name' || key === 'baseline' || key === 'recentWeighted' || key === 'volatility') ? 'asc' : 'desc';
+      }
+      if (lastFormGolfers.length) renderFormTable(lastFormGolfers);
+      else updateFormSortIndicators();
+    });
+  });
 }
 
 // Allow Enter key on login + pre-fill remembered username
@@ -1335,6 +1425,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('password').addEventListener('keydown', e => {
     if (e.key === 'Enter') doLogin();
   });
+
+  initFormSorting();
 
   // Restore remembered username
   const savedUsername = localStorage.getItem('ghin_username');

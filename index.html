@@ -169,16 +169,16 @@
       </div>
       <div id="form-loading" class="loading" style="display:none"><span class="spinner"></span>Loading scores…</div>
       <div class="table-wrap" style="margin-top:0.5rem">
-        <table>
+        <table id="form-table">
           <thead>
             <tr>
-              <th>Golfer</th>
-              <th>Baseline Diff</th>
-              <th>Recent Wtd Diff</th>
-              <th>Form Score</th>
-              <th>Trend</th>
-              <th>Volatility</th>
-              <th>Status</th>
+              <th class="sortable" data-sort="name">Golfer<span class="sort-indicator">↕</span></th>
+              <th class="sortable" data-sort="baseline">Baseline Diff<span class="sort-indicator">↕</span></th>
+              <th class="sortable" data-sort="recentWeighted">Recent Wtd Diff<span class="sort-indicator">↕</span></th>
+              <th class="sortable" data-sort="formScore">Form Score<span class="sort-indicator">↕</span></th>
+              <th class="sortable" data-sort="trend">Trend<span class="sort-indicator">↕</span></th>
+              <th class="sortable" data-sort="volatility">Volatility<span class="sort-indicator">↕</span></th>
+              <th class="sortable" data-sort="status">Status<span class="sort-indicator">↕</span></th>
             </tr>
           </thead>
           <tbody id="form-tbody">
