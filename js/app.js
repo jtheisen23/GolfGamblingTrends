@@ -275,16 +275,58 @@ function renderStats(golfer, scores) {
     document.getElementById('my-stats').innerHTML;
 }
 
+let scoresSortField = null;
+let scoresSortDir = 'desc';
+let lastScoresList = [];
+
+function getScoreDiffNum(s) {
+  const v = s.adjusted_scaled_up_differential ?? s.scaled_up_differential ?? s.differential;
+  const n = parseFloat(v);
+  return isNaN(n) ? null : n;
+}
+
+function getScoreSortKey(s, field) {
+  switch (field) {
+    case 'date': {
+      const t = new Date(s.played_at).getTime();
+      return isNaN(t) ? null : t;
+    }
+    case 'course': return (s.facility_name || s.course_name || '').toLowerCase() || null;
+    case 'tees': return (s.tee_name || s.course_rating_name || '').toLowerCase() || null;
+    case 'rating': {
+      const n = parseFloat(s.course_rating);
+      return isNaN(n) ? null : n;
+    }
+    case 'score': {
+      const n = parseFloat(s.adjusted_gross_score || s.gross_score);
+      return isNaN(n) ? null : n;
+    }
+    case 'differential': return getScoreDiffNum(s);
+    case 'type': return (s.score_type || s.status || '').toLowerCase() || null;
+    default: return null;
+  }
+}
+
 function renderScoresTable(scores) {
+  lastScoresList = scores;
   const tbody = document.getElementById('scores-tbody');
   document.getElementById('score-count').textContent = `${scores.length} rounds`;
 
   if (!scores.length) {
     tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No scores found.</td></tr>';
+    updateSortHeaderIndicators('scores-table', scoresSortField, scoresSortDir);
     return;
   }
 
-  tbody.innerHTML = scores.map(s => {
+  const sorted = scoresSortField
+    ? [...scores].sort((a, b) => compareSortValues(
+        getScoreSortKey(a, scoresSortField),
+        getScoreSortKey(b, scoresSortField),
+        scoresSortDir
+      ))
+    : scores;
+
+  tbody.innerHTML = sorted.map(s => {
     const courseName = s.facility_name || s.course_name || '—';
     const tees       = s.tee_name || s.course_rating_name || '—';
     const rating     = s.course_rating ? parseFloat(s.course_rating).toFixed(1) : '—';
@@ -308,6 +350,24 @@ function renderScoresTable(scores) {
       <td style="font-size:0.7rem;color:var(--muted)">${type}</td>
     </tr>`;
   }).join('');
+  updateSortHeaderIndicators('scores-table', scoresSortField, scoresSortDir);
+}
+
+function initScoresSorting() {
+  document.querySelectorAll('#scores-table th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.getAttribute('data-sort');
+      if (scoresSortField === key) {
+        scoresSortDir = scoresSortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        scoresSortField = key;
+        // Date defaults to descending (newest first); everything else ascending.
+        scoresSortDir = key === 'date' ? 'desc' : 'asc';
+      }
+      if (lastScoresList.length) renderScoresTable(lastScoresList);
+      else updateSortHeaderIndicators('scores-table', scoresSortField, scoresSortDir);
+    });
+  });
 }
 
 // ══════════════════════════════════════════
@@ -478,16 +538,74 @@ async function loadMembers() {
   }
 }
 
+let membersSortField = null;
+let membersSortDir = 'asc';
+let lastMembersList = [];
+
+function parseHcpValue(val) {
+  if (val == null || val === '' || val === '—') return null;
+  const s = String(val).trim();
+  if (s.toUpperCase() === 'NH') return null;
+  if (s.startsWith('+')) {
+    const n = parseFloat(s.slice(1));
+    return isNaN(n) ? null : -n;
+  }
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+
+function getMemberLastDiff(m) {
+  const cached = memberScoresCache[m.id];
+  if (!cached || !cached.length) return null;
+  const d = parseFloat(cached[0]?.adjusted_scaled_up_differential ?? cached[0]?.scaled_up_differential ?? cached[0]?.differential);
+  return isNaN(d) ? null : d;
+}
+
+function getMemberRecentAvg(m) {
+  const cached = memberScoresCache[m.id];
+  if (!cached || !cached.length) return null;
+  const diffs = cached.slice(0, 5)
+    .map(s => parseFloat(s.adjusted_scaled_up_differential ?? s.scaled_up_differential ?? s.differential))
+    .filter(n => !isNaN(n));
+  if (!diffs.length) return null;
+  return diffs.reduce((a, b) => a + b, 0) / diffs.length;
+}
+
+function getMemberSortKey(m, field) {
+  switch (field) {
+    case 'name': return `${m.last_name||''} ${m.first_name||''}`.trim().toLowerCase() || null;
+    case 'ghin': {
+      const n = parseInt(m.id || m.ghin_number, 10);
+      return isNaN(n) ? null : n;
+    }
+    case 'hcp': return parseHcpValue(m.handicap_index_display ?? m.hi_display ?? m.hi_value ?? m.handicap_index);
+    case 'lowhi': return parseHcpValue(m.low_hi_display ?? m.low_hi_value);
+    case 'lastdiff': return getMemberLastDiff(m);
+    case 'recent': return getMemberRecentAvg(m);
+    default: return null;
+  }
+}
+
 function renderMembersTable(members) {
+  lastMembersList = members;
   const tbody = document.getElementById('members-tbody');
   document.getElementById('member-count').textContent = `${members.length} golfers`;
 
   if (!members.length) {
     tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No members found.</td></tr>';
+    updateSortHeaderIndicators('members-table', membersSortField, membersSortDir);
     return;
   }
 
-  tbody.innerHTML = members.map(m => {
+  const sorted = membersSortField
+    ? [...members].sort((a, b) => compareSortValues(
+        getMemberSortKey(a, membersSortField),
+        getMemberSortKey(b, membersSortField),
+        membersSortDir
+      ))
+    : members;
+
+  tbody.innerHTML = sorted.map(m => {
     const name   = `${m.first_name||''} ${m.last_name||''}`.trim() || '—';
     const ghin   = m.id || m.ghin_number || '—';
     const hcp    = fmtHcp(m.handicap_index_display ?? m.hi_display ?? m.hi_value ?? m.handicap_index);
@@ -514,12 +632,29 @@ function renderMembersTable(members) {
       <td>${recentDiffs}</td>
     </tr>`;
   }).join('');
+  updateSortHeaderIndicators('members-table', membersSortField, membersSortDir);
 
   // Fetch scores for following list progressively if not yet loaded
   if (currentSubtab === 'following' && members.length > 0 && !memberScoresFetched) {
     memberScoresFetched = true;
     loadFollowingScores(members);
   }
+}
+
+function initMembersSorting() {
+  document.querySelectorAll('#members-table th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.getAttribute('data-sort');
+      if (membersSortField === key) {
+        membersSortDir = membersSortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        membersSortField = key;
+        membersSortDir = 'asc';
+      }
+      if (lastMembersList.length) renderMembersTable(lastMembersList);
+      else updateSortHeaderIndicators('members-table', membersSortField, membersSortDir);
+    });
+  });
 }
 
 async function loadFollowingScores(members) {
@@ -1389,18 +1524,31 @@ function renderFormTable(golfers) {
   updateFormSortIndicators();
 }
 
-function updateFormSortIndicators() {
-  document.querySelectorAll('#form-table th.sortable').forEach(th => {
+function updateSortHeaderIndicators(tableId, field, dir) {
+  document.querySelectorAll(`#${tableId} th.sortable`).forEach(th => {
     const key = th.getAttribute('data-sort');
     th.classList.remove('sort-asc', 'sort-desc');
     const ind = th.querySelector('.sort-indicator');
-    if (key === formSortField) {
-      th.classList.add(formSortDir === 'asc' ? 'sort-asc' : 'sort-desc');
-      if (ind) ind.textContent = formSortDir === 'asc' ? '↑' : '↓';
+    if (key === field) {
+      th.classList.add(dir === 'asc' ? 'sort-asc' : 'sort-desc');
+      if (ind) ind.textContent = dir === 'asc' ? '↑' : '↓';
     } else if (ind) {
       ind.textContent = '↕';
     }
   });
+}
+
+function compareSortValues(av, bv, dir) {
+  const sign = dir === 'asc' ? 1 : -1;
+  if (av == null && bv == null) return 0;
+  if (av == null) return 1;
+  if (bv == null) return -1;
+  if (typeof av === 'string') return av.localeCompare(bv) * sign;
+  return (av - bv) * sign;
+}
+
+function updateFormSortIndicators() {
+  updateSortHeaderIndicators('form-table', formSortField, formSortDir);
 }
 
 function initFormSorting() {
@@ -1427,6 +1575,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   initFormSorting();
+  initScoresSorting();
+  initMembersSorting();
 
   // Restore remembered username
   const savedUsername = localStorage.getItem('ghin_username');
