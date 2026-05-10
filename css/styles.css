@@ -318,6 +318,17 @@ th {
   font-weight: 500;
 }
 
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { background: rgba(255,255,255,0.08); }
+th.sortable .sort-indicator {
+  display: inline-block;
+  margin-left: 0.35rem;
+  opacity: 0.35;
+  font-size: 0.7rem;
+}
+th.sortable.sort-asc .sort-indicator,
+th.sortable.sort-desc .sort-indicator { opacity: 1; }
+
 td {
   padding: 0.7rem 1rem;
   font-size: 0.8rem;
